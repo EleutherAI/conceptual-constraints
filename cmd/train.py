@@ -24,24 +24,24 @@ def main() -> None:
     )
 
     # Prepare MNLI dataset
-    logger.info("Loading MNLI dataset...")
+    logger.info("Loading MNLI dataset.")
     train_dataset = load_dataset("glue", "mnli", split="train")
     val_dataset = load_dataset("glue", "mnli", split="validation_matched")
 
     # Tokenize MNLI dataset
-    logger.info("Tokenizing MNLI dataset...")
+    logger.info("Tokenizing MNLI dataset.")
     tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     tokenize_fn = partial(mnli_tokenize_function, tokenizer=tokenizer, max_length=128)
     train_dataset = train_dataset.map(tokenize_fn, batched=True)
     val_dataset = val_dataset.map(tokenize_fn, batched=True)
 
     # Prepare HANS dataset
-    logger.info("Loading HANS dataset...")
+    logger.info("Loading HANS dataset.")
     hans_train = HANSDataset(split="train")
     hans_eval = HANSDataset(split="val")
 
     # Load BERT model and tokenizer
-    logger.info("Loading BERT model...")
+    logger.info("Loading BERT model.")
     bert = AutoModelForSequenceClassification.from_pretrained(
         "bert-base-uncased", num_labels=3
     )
@@ -57,7 +57,6 @@ def main() -> None:
         do_train=True,
         do_eval=True,
         evaluation_strategy="epoch",
-        logging_strategy="epoch",
     )
 
     # Define trainer
@@ -71,11 +70,11 @@ def main() -> None:
     )
 
     # Finetune model
-    logger.info("Finetuning model...")
+    logger.info("Finetuning model.")
     trainer.train()
 
     # Evaluate model on HANS dataset
-    logger.info("Evaluating model on HANS dataset...")
+    logger.info("Evaluating model on HANS dataset.")
     trainer.compute_metrics = partial(compute_metrics, dataset_name="hans")
     eval_results = trainer.evaluate(
         eval_dataset={
