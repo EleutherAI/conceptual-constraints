@@ -47,7 +47,7 @@ dependencies = [
 
 
 [project.optional-dependencies]
-test = [
+dev = [
   "pytest",
   "coverage",
   "mypy",
