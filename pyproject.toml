@@ -43,6 +43,7 @@ dependencies = [
   "concept-erasure",
   "evaluate",
   "transformers[torch]",
+  "scikit-learn",
 ]
 
 
