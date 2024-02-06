@@ -44,7 +44,7 @@ class HANSDataset(Dataset):
                     lines[1:],
                     desc="Processing HANS dataset",
                     leave=False,
-                    units="examples",
+                    unit="examples",
                 )
             ):
                 data = self.parse_line(line)

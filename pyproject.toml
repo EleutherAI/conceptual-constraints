@@ -42,7 +42,7 @@ dependencies = [
   "wandb",
   "concept-erasure",
   "evaluate",
-  "transformers",
+  "transformers[torch]",
 ]
 
 
