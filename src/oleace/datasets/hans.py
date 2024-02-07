@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, Subset
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from oleace.utils.tokenize import mnli_tokenize_function
+from oleace.utils.tokenization import mnli_tokenize_function
 
 
 class HANSDataset(Dataset):

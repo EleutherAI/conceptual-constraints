@@ -13,7 +13,7 @@ from transformers.utils import logging
 
 from oleace.datasets.hans import HANSDataset
 from oleace.utils.eval import compute_metrics
-from oleace.utils.tokenize import mnli_tokenize_function
+from oleace.utils.tokenization import mnli_tokenize_function
 
 
 def main() -> None:
@@ -39,8 +39,8 @@ def main() -> None:
 
     # Prepare MNLI dataset
     logger.info("Loading MNLI dataset.")
-    train_dataset = load_dataset("glue", "mnli", split="train")
-    val_dataset = load_dataset("glue", "mnli", split="validation_matched")
+    train_dataset = load_dataset("multi_nli", split="train")
+    val_dataset = load_dataset("multi_nli", split="validation_matched")
 
     # Tokenize MNLI dataset
     logger.info("Tokenizing MNLI dataset.")
@@ -64,9 +64,9 @@ def main() -> None:
     training_args = TrainingArguments(
         output_dir=f"./results/{run_id}",
         num_train_epochs=3,
-        per_device_train_batch_size=32,
-        per_device_eval_batch_size=64,
-        learning_rate=2e-5,
+        per_device_train_batch_size=128,
+        per_device_eval_batch_size=512,
+        learning_rate=8e-5,
         logging_dir=f"./logs/{run_id}",
         do_train=True,
         do_eval=True,
