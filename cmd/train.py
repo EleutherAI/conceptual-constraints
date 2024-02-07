@@ -1,3 +1,5 @@
+import random
+import string
 from functools import partial
 
 from datasets import load_dataset
@@ -15,6 +17,17 @@ from oleace.utils.tokenize import mnli_tokenize_function
 
 
 def main() -> None:
+
+    # Initialize Weights and Biases
+    try:
+        import wandb
+
+        wandb.init(project="oleace")
+        run_id = wandb.run.id
+
+    # If Weights and Biases is not installed, set run_id to random string of size 7
+    except ImportError:
+        run_id = "".join(random.choices(string.ascii_lowercase + string.digits, k=7))
 
     logging.set_verbosity_info()
     logger = logging.get_logger("transformers")
@@ -48,12 +61,12 @@ def main() -> None:
 
     # Define training arguments
     training_args = TrainingArguments(
-        output_dir="./results",
+        output_dir=f"./results/{run_id}",
         num_train_epochs=3,
         per_device_train_batch_size=32,
         per_device_eval_batch_size=64,
         learning_rate=2e-5,
-        logging_dir="./logs",
+        logging_dir=f"./logs/{run_id}",
         do_train=True,
         do_eval=True,
         evaluation_strategy="epoch",
