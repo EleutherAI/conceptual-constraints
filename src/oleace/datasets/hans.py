@@ -1,7 +1,8 @@
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
@@ -72,3 +73,14 @@ class HANSDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         return self.data_list[idx]
+
+    def get_splits(self) -> dict[str, Any]:
+        subset_indices: dict[str, list[int]] = defaultdict(list)
+        for idx in range(len(self)):
+            heuristic = self.data_list[idx]["heuristic"]
+            entailment = (
+                "entailment" if self.data_list[idx]["labels"] == 0 else "non-entailment"
+            )
+            subset_indices[f"hans_{self.split}_{heuristic}_{entailment}"].append(idx)
+
+        return {key: Subset(self, indices) for key, indices in subset_indices.items()}

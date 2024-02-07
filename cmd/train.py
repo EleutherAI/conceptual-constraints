@@ -22,8 +22,9 @@ def main() -> None:
     try:
         import wandb
 
-        wandb.init(project="oleace")
-        run_id = wandb.run.id
+        run = wandb.init(project="oleace")
+        assert run is not None
+        run_id = run.id
 
     # If Weights and Biases is not installed, set run_id to random string of size 7
     except ImportError:
@@ -90,10 +91,7 @@ def main() -> None:
     logger.info("Evaluating model on HANS dataset.")
     trainer.compute_metrics = partial(compute_metrics, dataset_name="hans")
     eval_results = trainer.evaluate(
-        eval_dataset={
-            "hans_eval": hans_eval,
-            "hans_train": hans_train,
-        }
+        eval_dataset=hans_train.get_splits() | hans_eval.get_splits()
     )
     logger.info(eval_results)
 
