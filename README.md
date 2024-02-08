@@ -22,6 +22,7 @@ where `XYZ` is the ID of the model to be evaluated (assign in the `./results` di
 | ERASURE_METHOD | Description |
 | --- | --- |
 | `leace-cls` | LEACE applied to the representation of each CLS token. |
+| `leace-flatten` | LEACE with orth flag applied to sequence representation. |
 
 
 ## Contribute
