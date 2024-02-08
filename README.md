@@ -12,6 +12,17 @@ One can finetune a BERT model on the MNLI dataset and evaluate the resulting mod
 ```bash
 python cmd/train.py
 ```
+This model can be evaluated (with or without concept erasure) via the command:
+```bash
+python cmd/evaluate_model.py XYZ --concept-erasure ERASURE_METHOD
+```
+
+where `XYZ` is the ID of the model to be evaluated (assign in the `./results` directory) and `ERASURE_METHOD` is an optional argument assuming one of the following values:
+
+| ERASURE_METHOD | Description |
+| --- | --- |
+| `leace-cls` | LEACE applied to the representation of each CLS token. |
+
 
 ## Contribute
 Development dependencies can be installed with:
