@@ -1,18 +1,23 @@
 import json
 from functools import partial
 from pathlib import Path
+from typing import Optional
 
 import click
 from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments
 from transformers.utils import logging
 
 from oleace.datasets.hans import HANSDataset
+from oleace.utils.concept import bert_erase_heuristic
 from oleace.utils.eval import compute_metrics, get_latest_checkpoint
 
 
 @click.command()
 @click.argument("run_id")
-def main(run_id: str) -> None:
+@click.option(
+    "--concept-erasure", default=None, help="Concept erasure method to use (if any)."
+)
+def main(run_id: str, concept_erasure: Optional[str] = None) -> None:
     logging.set_verbosity_info()
     logger = logging.get_logger("transformers")
 
@@ -22,6 +27,12 @@ def main(run_id: str) -> None:
     logger.info(f"Loading BERT model with {run_id=}.")
     latest_checkpoint_dir = get_latest_checkpoint(f"./results/{run_id}")
     model = AutoModelForSequenceClassification.from_pretrained(latest_checkpoint_dir)
+    model.cuda()
+
+    # Erase heuristic concepts if necessary
+    if concept_erasure is not None:
+        logger.info(f"Erasing heuristic concepts using {concept_erasure}.")
+        bert_erase_heuristic(bert=model, concept_erasure=concept_erasure)
 
     # Load the HANS dataset
     logger.info("Loading HANS dataset.")
@@ -58,7 +69,11 @@ def main(run_id: str) -> None:
     logger.info(eval_results)
 
     # Save evaluation results in the checkpoint directory in a JSON file
-    with open(Path(latest_checkpoint_dir) / "hans_results.json", "w") as f:
+    with open(
+        Path(latest_checkpoint_dir)
+        / f"hans_results_{concept_erasure if concept_erasure is not None else 'default'}.json",
+        "w",
+    ) as f:
         json.dump(eval_results, f)
 
 

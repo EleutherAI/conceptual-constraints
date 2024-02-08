@@ -2,9 +2,11 @@ from typing import Callable
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from concept_erasure import LeaceFitter
 from torch.utils.data import DataLoader
 from torch.utils.hooks import RemovableHandle
+from tqdm import tqdm
 
 
 class HookManager:
@@ -33,8 +35,21 @@ class LeaceCLS(HookManager):
 
     def fit(self, model: nn.Module, data_loader: DataLoader) -> None:
         self.register_hooks(self.leace_fit_hook)
-        for batch in data_loader:
-            model(batch)
+        batch: dict[str, torch.Tensor]
+        for batch in tqdm(
+            data_loader, desc="Fitting concept erasers", unit="batch", leave=False
+        ):
+
+            # Remove labels and promptID from batch
+            batch.pop("labels")
+            batch.pop("promptID")
+
+            # Move batch to the same device as the model
+            batch = {k: v.to(next(model.parameters()).device) for k, v in batch.items()}
+
+            # Forward pass
+            model(**batch)
+
         self.remove_hooks()
 
     def activate_eraser(self) -> None:
@@ -58,16 +73,17 @@ class LeaceCLS(HookManager):
 
         # Assign concept labels by assuming that the order is [concept_0, concept_1, ..., concept_n, concept_0, ...]
         assert (
-            cls_rep.shape[0] % self.num_concepts == 0
-        ), f"The batch size {cls_rep.shape[0]} be divisible by the number of concepts {self.num_concepts}."
-        n_per_concept = cls_rep.shape[0] // self.num_concepts
+            cls_rep.shape[0] % (self.num_concepts + 1) == 0
+        ), f"The batch size {cls_rep.shape[0]} be divisible by  {self.num_concepts + 1}."
+        n_per_concept = cls_rep.shape[0] // (self.num_concepts + 1)
         labels = torch.arange(
-            self.num_concepts, dtype=torch.long, device=cls_rep.device
+            self.num_concepts + 1, dtype=torch.long, device=cls_rep.device
         ).repeat(n_per_concept)
+        labels = F.one_hot(labels, num_classes=self.num_concepts + 1)
 
         if self.leace_erasers[module] is None:
             self.leace_erasers[module] = LeaceFitter(
-                cls_rep.shape[-1], self.num_concepts - 1
+                cls_rep.shape[-1], self.num_concepts + 1, device=cls_rep.device
             )
 
         leace_eraser = self.leace_erasers[module]

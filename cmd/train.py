@@ -13,7 +13,7 @@ from transformers.utils import logging
 
 from oleace.datasets.hans import HANSDataset
 from oleace.utils.eval import compute_metrics
-from oleace.utils.tokenization import mnli_tokenize_function
+from oleace.utils.tokenization import tokenize_mnli
 
 
 def main() -> None:
@@ -44,10 +44,8 @@ def main() -> None:
 
     # Tokenize MNLI dataset
     logger.info("Tokenizing MNLI dataset.")
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-    tokenize_fn = partial(mnli_tokenize_function, tokenizer=tokenizer, max_length=128)
-    train_dataset = train_dataset.map(tokenize_fn, batched=True)
-    val_dataset = val_dataset.map(tokenize_fn, batched=True)
+    train_dataset = tokenize_mnli(train_dataset)
+    val_dataset = tokenize_mnli(val_dataset)
 
     # Prepare HANS dataset
     logger.info("Loading HANS dataset.")
@@ -79,7 +77,6 @@ def main() -> None:
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
-        tokenizer=tokenizer,
         compute_metrics=partial(compute_metrics, dataset_name="mnli"),
     )
 

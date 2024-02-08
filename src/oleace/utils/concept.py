@@ -4,8 +4,12 @@
 from collections import defaultdict
 
 from datasets import load_dataset
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
+from transformers import BertForSequenceClassification, DefaultDataCollator
+
+from .hooks import LeaceCLS
+from .tokenization import tokenize_mnli
 
 
 def parse_phrase_list(parse: str, phrases: list[str]) -> list[str]:
@@ -106,13 +110,16 @@ def is_subsequence(data: dict[str, str]) -> bool:
     return hyp_filtered in prem_filtered
 
 
-def build_mnli_concept_loader(batch_size: int = 32) -> DataLoader:
+def build_mnli_heuristic_loader(batch_size: int = 32) -> DataLoader:
     assert batch_size > 0, "The batch size must be positive."
     assert (
         batch_size % 4 == 0
     ), "The batch size must be divisible by 4 as it needs to be balanced accross 3 concepts and 1 negative."
 
-    mlni_dataset = load_dataset("multi_nli", split="train")
+    # Get the MNLI dataset and tokenize it
+    mnli_dataset = load_dataset("multi_nli", split="train")
+    mnli_dataset = tokenize_mnli(mnli_dataset)
+
     concept_detectors = {
         "constituent": is_constituent,
         "lexical_overlap": is_lexical_overlap,
@@ -123,7 +130,7 @@ def build_mnli_concept_loader(batch_size: int = 32) -> DataLoader:
     concept_indices: dict[str, list[int]] = defaultdict(list)
     for idx, example_data in enumerate(
         tqdm(
-            mlni_dataset,
+            mnli_dataset,
             desc="Assigning concepts to MNLI examples",
             unit=" examples",
             leave=False,
@@ -139,7 +146,6 @@ def build_mnli_concept_loader(batch_size: int = 32) -> DataLoader:
 
     # Measure the minimum concept size
     min_size = min(len(indices) for indices in concept_indices.values())
-    print(min_size)
 
     # Create an alternative sequence of concept indices
     concept_sequence = []
@@ -148,7 +154,30 @@ def build_mnli_concept_loader(batch_size: int = 32) -> DataLoader:
             concept_sequence.append(indices[i])
 
     # Create a subset of the MNLI dataset with the concept sequence
-    concept_set = Subset(mlni_dataset, concept_sequence)
+    mnli_dataset = mnli_dataset.select(concept_sequence)
 
     # Return a DataLoader with the concept set
-    return DataLoader(concept_set, batch_size=batch_size, shuffle=False)
+    return DataLoader(
+        mnli_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=DefaultDataCollator(),
+    )
+
+
+def bert_erase_heuristic(
+    bert: BertForSequenceClassification, concept_erasure: str = "leace-cls"
+) -> None:
+
+    # Get a list of BERT layers (i.e. all transformer blocks)
+    bert_layers = list(bert.bert.encoder.layer.children())
+
+    # Apply the right concept erasure method to these layers
+    match concept_erasure:
+        case "leace-cls":
+            concept_eraser = LeaceCLS(bert_layers, num_concepts=3)
+        case _:
+            raise ValueError(f"Invalid concept erasure method: {concept_erasure}.")
+
+    concept_eraser.fit(model=bert, data_loader=build_mnli_heuristic_loader())
+    concept_eraser.activate_eraser()
