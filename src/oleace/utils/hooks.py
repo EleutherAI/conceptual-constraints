@@ -206,6 +206,6 @@ class LeaceFlatten(ConceptEraser):
 
         # Replace the sequence representation with the erased representation
         if isinstance(output, tuple):
-            tuple([sequence_rep] + list(output[1:]))
+            return tuple([sequence_rep] + list(output[1:]))
         else:
             return sequence_rep
