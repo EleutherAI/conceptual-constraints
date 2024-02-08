@@ -43,8 +43,10 @@ class ConceptEraser(HookManager, ABC):
         ):
 
             # Remove labels and promptID from batch
-            batch.pop("labels")
-            batch.pop("promptID")
+            if "labels" in batch:
+                batch.pop("labels")
+            if "promptID" in batch:
+                batch.pop("promptID")
 
             # Move batch to the same device as the model
             batch = {k: v.to(next(model.parameters()).device) for k, v in batch.items()}
