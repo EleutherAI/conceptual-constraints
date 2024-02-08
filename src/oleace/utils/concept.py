@@ -1,7 +1,10 @@
 # The concept assignment for the HANS heuristics has been adapted from
 # https://github.com/tommccoy1/hans/blob/master/heuristic_finder_scripts/const_finder.py
 
+from collections import defaultdict
+
 from datasets import load_dataset
+from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 
@@ -103,19 +106,49 @@ def is_subsequence(data: dict[str, str]) -> bool:
     return hyp_filtered in prem_filtered
 
 
-if __name__ == "__main__":
+def build_mnli_concept_loader(batch_size: int = 32) -> DataLoader:
+    assert batch_size > 0, "The batch size must be positive."
+    assert (
+        batch_size % 4 == 0
+    ), "The batch size must be divisible by 4 as it needs to be balanced accross 3 concepts and 1 negative."
 
-    train_dataset = load_dataset("multi_nli", split="train")
-    consituent_count = 0
-    lexical_overlap_count = 0
-    subsequence_count = 0
-    for example in tqdm(train_dataset):
-        if is_constituent(example):
-            consituent_count += 1
-        if is_lexical_overlap(example):
-            lexical_overlap_count += 1
-        if is_subsequence(example):
-            subsequence_count += 1
-    print(consituent_count / len(train_dataset))
-    print(lexical_overlap_count / len(train_dataset))
-    print(subsequence_count / len(train_dataset))
+    mlni_dataset = load_dataset("multi_nli", split="train")
+    concept_detectors = {
+        "constituent": is_constituent,
+        "lexical_overlap": is_lexical_overlap,
+        "subsequence": is_subsequence,
+    }
+
+    # Make a list of indices for each concept
+    concept_indices: dict[str, list[int]] = defaultdict(list)
+    for idx, example_data in enumerate(
+        tqdm(
+            mlni_dataset,
+            desc="Assigning concepts to MNLI examples",
+            unit=" examples",
+            leave=False,
+        )
+    ):
+        no_concept_assigned = True
+        for concept, detector in concept_detectors.items():
+            if detector(example_data):
+                concept_indices[concept].append(idx)
+                no_concept_assigned = False
+        if no_concept_assigned:
+            concept_indices["negative"].append(idx)
+
+    # Measure the minimum concept size
+    min_size = min(len(indices) for indices in concept_indices.values())
+    print(min_size)
+
+    # Create an alternative sequence of concept indices
+    concept_sequence = []
+    for i in range(min_size):
+        for concept, indices in concept_indices.items():
+            concept_sequence.append(indices[i])
+
+    # Create a subset of the MNLI dataset with the concept sequence
+    concept_set = Subset(mlni_dataset, concept_sequence)
+
+    # Return a DataLoader with the concept set
+    return DataLoader(concept_set, batch_size=batch_size, shuffle=False)
