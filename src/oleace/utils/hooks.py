@@ -1,15 +1,17 @@
+from abc import ABC, abstractmethod
 from typing import Callable
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from concept_erasure import LeaceFitter
+from concept_erasure import LeaceEraser, LeaceFitter
+from torch.nn.modules import Module
 from torch.utils.data import DataLoader
 from torch.utils.hooks import RemovableHandle
 from tqdm import tqdm
 
 
-class HookManager:
+class HookManager(ABC):
     def __init__(self, module_list: list[nn.Module]):
         self.module_list = module_list
         self.handles: list[RemovableHandle] = []
@@ -25,16 +27,16 @@ class HookManager:
         self.handles = []
 
 
-class LeaceCLS(HookManager):
-    def __init__(self, module_list: list[nn.Module], num_concepts: int = 2):
+class ConceptEraser(HookManager, ABC):
+    def __init__(self, module_list: list[Module], num_concepts: int = 2):
         super().__init__(module_list)
         self.num_concepts = num_concepts
-        self.leace_erasers: dict[nn.Module, LeaceFitter | None] = {
+        self.erasers: dict[nn.Module, LeaceFitter | None | LeaceEraser] = {
             module: None for module in module_list
         }
 
     def fit(self, model: nn.Module, data_loader: DataLoader) -> None:
-        self.register_hooks(self.leace_fit_hook)
+        self.register_hooks(self.fit_hook)
         batch: dict[str, torch.Tensor]
         for batch in tqdm(
             data_loader, desc="Fitting concept erasers", unit="batch", leave=False
@@ -53,12 +55,32 @@ class LeaceCLS(HookManager):
         self.remove_hooks()
 
     def activate_eraser(self) -> None:
-        self.register_hooks(self.leace_erase_hook)
+        self.register_hooks(self.erase_hook)
 
     def deactivate_eraser(self) -> None:
         self.remove_hooks()
 
-    def leace_fit_hook(
+    @abstractmethod
+    def fit_hook(
+        self,
+        module: nn.Module,
+        input: torch.Tensor,
+        output: torch.Tensor | tuple[torch.Tensor, ...],
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def erase_hook(
+        self,
+        module: nn.Module,
+        input: torch.Tensor,
+        output: torch.Tensor | tuple[torch.Tensor, ...],
+    ) -> torch.Tensor | tuple[torch.Tensor, ...]:
+        pass
+
+
+class LeaceCLS(ConceptEraser):
+    def fit_hook(
         self,
         module: nn.Module,
         input: torch.Tensor,
@@ -81,16 +103,16 @@ class LeaceCLS(HookManager):
         ).repeat(n_per_concept)
         labels = F.one_hot(labels, num_classes=self.num_concepts + 1)
 
-        if self.leace_erasers[module] is None:
-            self.leace_erasers[module] = LeaceFitter(
+        if self.erasers[module] is None:
+            self.erasers[module] = LeaceFitter(
                 cls_rep.shape[-1], self.num_concepts + 1, device=cls_rep.device
             )
 
-        leace_eraser = self.leace_erasers[module]
-        assert leace_eraser is not None
+        leace_eraser = self.erasers[module]
+        assert isinstance(leace_eraser, LeaceFitter)
         leace_eraser.update(cls_rep, labels)
 
-    def leace_erase_hook(
+    def erase_hook(
         self,
         module: nn.Module,
         input: torch.Tensor,
@@ -103,8 +125,8 @@ class LeaceCLS(HookManager):
             cls_rep = output[:, 0, :]
 
         # Erase the concept from the representation of the CLS token
-        leace_eraser = self.leace_erasers[module]
-        assert leace_eraser is not None
+        leace_eraser = self.erasers[module]
+        assert isinstance(leace_eraser, LeaceFitter)
         new_cls_rep = leace_eraser.eraser(cls_rep)
 
         # Replace the representation of the CLS token with the erased representation
