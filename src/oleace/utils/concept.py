@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import BertForSequenceClassification, DefaultDataCollator
 
-from .hooks import LeaceCLS
+from .hooks import LeaceCLS, LeaceFlatten
 from .tokenization import tokenize_mnli
 
 
@@ -119,6 +119,7 @@ def build_mnli_heuristic_loader(batch_size: int = 32) -> DataLoader:
     # Get the MNLI dataset and tokenize it
     mnli_dataset = load_dataset("multi_nli", split="train")
     mnli_dataset = tokenize_mnli(mnli_dataset)
+    mnli_dataset = mnli_dataset.select(range(1000))
 
     concept_detectors = {
         "constituent": is_constituent,
@@ -176,6 +177,8 @@ def bert_erase_heuristic(
     match concept_erasure:
         case "leace-cls":
             concept_eraser = LeaceCLS(bert_layers, num_concepts=3)
+        case "leace-flatten":
+            concept_eraser = LeaceFlatten(bert_layers, num_concepts=3)
         case _:
             raise ValueError(f"Invalid concept erasure method: {concept_erasure}.")
 

@@ -78,6 +78,18 @@ class ConceptEraser(HookManager, ABC):
     ) -> torch.Tensor | tuple[torch.Tensor, ...]:
         pass
 
+    def concept_label_assignment(self, representation: torch.Tensor) -> torch.Tensor:
+        # Assign concept labels by assuming that the order is [concept_0, concept_1, ..., concept_n, concept_0, ...]
+        assert (
+            representation.shape[0] % (self.num_concepts + 1) == 0
+        ), f"The batch size {representation.shape[0]} be divisible by  {self.num_concepts + 1}."
+        n_per_concept = representation.shape[0] // (self.num_concepts + 1)
+        labels = torch.arange(
+            self.num_concepts + 1, dtype=torch.long, device=representation.device
+        ).repeat(n_per_concept)
+        labels = F.one_hot(labels, num_classes=self.num_concepts + 1)
+        return labels
+
 
 class LeaceCLS(ConceptEraser):
     def fit_hook(
@@ -93,21 +105,16 @@ class LeaceCLS(ConceptEraser):
         else:
             cls_rep = output[:, 0, :]
 
-        # Assign concept labels by assuming that the order is [concept_0, concept_1, ..., concept_n, concept_0, ...]
-        assert (
-            cls_rep.shape[0] % (self.num_concepts + 1) == 0
-        ), f"The batch size {cls_rep.shape[0]} be divisible by  {self.num_concepts + 1}."
-        n_per_concept = cls_rep.shape[0] // (self.num_concepts + 1)
-        labels = torch.arange(
-            self.num_concepts + 1, dtype=torch.long, device=cls_rep.device
-        ).repeat(n_per_concept)
-        labels = F.one_hot(labels, num_classes=self.num_concepts + 1)
+        # Assign concept labels
+        labels = self.concept_label_assignment(cls_rep)
 
+        # Instantiate LEACE eraser if necessary
         if self.erasers[module] is None:
             self.erasers[module] = LeaceFitter(
                 cls_rep.shape[-1], self.num_concepts + 1, device=cls_rep.device
             )
 
+        # Update LEACE eraser with the right statistics
         leace_eraser = self.erasers[module]
         assert isinstance(leace_eraser, LeaceFitter)
         leace_eraser.update(cls_rep, labels)
@@ -118,6 +125,7 @@ class LeaceCLS(ConceptEraser):
         input: torch.Tensor,
         output: torch.Tensor | tuple[torch.Tensor, ...],
     ) -> torch.Tensor | tuple[torch.Tensor, ...]:
+
         # Extract the representation from the CLS token
         if isinstance(output, tuple):
             cls_rep = output[0][:, 0, :]
@@ -127,8 +135,78 @@ class LeaceCLS(ConceptEraser):
         # Erase the concept from the representation of the CLS token
         leace_eraser = self.erasers[module]
         assert isinstance(leace_eraser, LeaceFitter)
-        new_cls_rep = leace_eraser.eraser(cls_rep)
+        cls_rep = leace_eraser.eraser(cls_rep)
 
         # Replace the representation of the CLS token with the erased representation
-        output[0][:, 0, :] = new_cls_rep
+        if isinstance(output, tuple):
+            output[0][:, 0, :] = cls_rep
+        else:
+            output[:, 0, :] = cls_rep
+        return output
+
+
+class LeaceFlatten(ConceptEraser):
+    def fit_hook(
+        self,
+        module: nn.Module,
+        input: torch.Tensor,
+        output: torch.Tensor | tuple[torch.Tensor, ...],
+    ) -> None:
+
+        # Extract the sequence representation token
+        if isinstance(output, tuple):
+            sequence_rep = output[0]
+        else:
+            sequence_rep = output
+
+        # Flatten the sequence representation
+        sequence_rep = sequence_rep.flatten(start_dim=1)
+
+        # Assign concept labels by assuming that the order is [concept_0, concept_1, ..., concept_n, concept_0, ...]
+        labels = self.concept_label_assignment(sequence_rep)
+
+        # Instantiate LEACE eraser if necessary (with orth flag to save vRAM)
+        if self.erasers[module] is None:
+            self.erasers[module] = LeaceFitter(
+                sequence_rep.shape[-1],
+                self.num_concepts + 1,
+                device=sequence_rep.device,
+                method="orth",
+            )
+
+        leace_eraser = self.erasers[module]
+        assert isinstance(leace_eraser, LeaceFitter)
+        leace_eraser.update(sequence_rep, labels)
+
+    def erase_hook(
+        self,
+        module: nn.Module,
+        input: torch.Tensor,
+        output: torch.Tensor | tuple[torch.Tensor, ...],
+    ) -> torch.Tensor | tuple[torch.Tensor, ...]:
+
+        # Extract the sequence representation
+        if isinstance(output, tuple):
+            sequence_rep = output[0]
+        else:
+            sequence_rep = output
+
+        # Flatten the sequence representation
+        sequence_rep_shape = sequence_rep.shape
+        sequence_rep = sequence_rep.flatten(start_dim=1)
+
+        # Erase the concept from the representation of the CLS token
+        leace_eraser = self.erasers[module]
+        assert isinstance(leace_eraser, LeaceFitter)
+        sequence_rep = leace_eraser.eraser(sequence_rep)
+        assert isinstance(sequence_rep, torch.Tensor)
+
+        # Unflatten the sequence representation
+        sequence_rep = sequence_rep.unflatten(dim=1, sizes=sequence_rep_shape[1:])
+
+        # Replace the sequence representation with the erased representation
+        if isinstance(output, tuple):
+            output[0] = sequence_rep  # type: ignore
+        else:
+            output = sequence_rep
         return output

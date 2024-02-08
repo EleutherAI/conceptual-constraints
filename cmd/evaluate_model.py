@@ -42,7 +42,7 @@ def main(run_id: str, concept_erasure: Optional[str] = None) -> None:
     # Define training arguments
     training_args = TrainingArguments(
         output_dir=f"./results/{run_id}",
-        per_device_eval_batch_size=64,
+        per_device_eval_batch_size=1 if concept_erasure == "leace-flatten" else 64,
         logging_dir=f"./logs/{run_id}",
         do_eval=True,
         evaluation_strategy="epoch",
