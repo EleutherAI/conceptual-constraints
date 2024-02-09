@@ -20,7 +20,7 @@ where `--concept_erasure` and `--include_sublayers` are optional flags controlli
 
 This model can be evaluated (with or without concept erasure) via the command:
 ```bash
-python cmd/evaluate_model.py XYZ --concept-erasure ERASURE_METHOD
+python cmd/evaluate_model.py XYZ --concept-erasure ERASURE_METHOD --include_sublayers
 ```
 
 where `XYZ` is the ID of the model to be evaluated (assign in the `./results` directory) , where `--concept_erasure` and `--include_sublayers` are optional flags and `ERASURE_METHOD` is an optional argument assuming one of the above values.
