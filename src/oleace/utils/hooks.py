@@ -60,6 +60,9 @@ class ConceptEraser(HookManager, ABC):
     def deactivate_eraser(self) -> None:
         self.remove_hooks()
 
+    def reset_eraser(self) -> None:
+        self.erasers = {module: None for module in self.module_list}
+
     @abstractmethod
     def fit_hook(
         self,
