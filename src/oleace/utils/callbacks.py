@@ -40,7 +40,6 @@ class ConceptEraserCallback(TrainerCallback):
         state: TrainerState,
         control: TrainerControl,
         model: nn.Module,
-        tokenizer: Callable,
         **kwargs: dict[str, Any],
     ) -> None:
         self.update_concept_eraser(model)
