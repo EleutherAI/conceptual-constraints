@@ -166,11 +166,16 @@ def build_mnli_heuristic_loader(batch_size: int = 32) -> DataLoader:
 
 
 def get_bert_concept_eraser(
-    bert: BertForSequenceClassification, concept_erasure: str
+    bert: BertForSequenceClassification,
+    concept_erasure: str,
+    include_sublayers: bool = False,
 ) -> ConceptEraser:
 
     # Get a list of BERT layers (i.e. all transformer blocks)
     bert_layers = list(bert.bert.encoder.layer.children())
+
+    if include_sublayers:
+        bert_layers = [module for layer in bert_layers for module in layer.children()]
 
     # Apply the right concept erasure method to these layers
     match concept_erasure:
@@ -183,9 +188,13 @@ def get_bert_concept_eraser(
 
 
 def bert_erase_heuristic(
-    bert: BertForSequenceClassification, concept_erasure: str = "leace-cls"
+    bert: BertForSequenceClassification,
+    concept_erasure: str = "leace-cls",
+    include_sublayers: bool = False,
 ) -> None:
 
-    concept_eraser = get_bert_concept_eraser(bert, concept_erasure)
+    concept_eraser = get_bert_concept_eraser(
+        bert, concept_erasure, include_sublayers=include_sublayers
+    )
     concept_eraser.fit(model=bert, data_loader=build_mnli_heuristic_loader())
     concept_eraser.activate_eraser()

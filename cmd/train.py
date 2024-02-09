@@ -19,7 +19,14 @@ from oleace.utils.tokenization import tokenize_mnli
 @click.option(
     "--concept_erasure", default=None, help="Concept erasure method to use (if any)."
 )
-def main(concept_erasure: Optional[str] = None) -> None:
+@click.option(
+    "--include_sublayers",
+    is_flag=True,
+    help="Include sublayers of BERT in the concept erasure method.",
+)
+def main(
+    concept_erasure: Optional[str] = None, include_sublayers: bool = False
+) -> None:
 
     # Initialize Weights and Biases
     try:
@@ -79,7 +86,9 @@ def main(concept_erasure: Optional[str] = None) -> None:
         logger.info(f"Creating concept erasure callback using {concept_erasure}.")
         concept_data_loader = build_mnli_heuristic_loader()
         concept_eraser = get_bert_concept_eraser(
-            bert=bert, concept_erasure=concept_erasure
+            bert=bert,
+            concept_erasure=concept_erasure,
+            include_sublayers=include_sublayers,
         )
         concept_eraser_callback = ConceptEraserCallback(
             concept_eraser=concept_eraser, concept_data_loader=concept_data_loader

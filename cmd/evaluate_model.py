@@ -17,7 +17,14 @@ from oleace.utils.eval import compute_metrics, get_latest_checkpoint
 @click.option(
     "--concept_erasure", default=None, help="Concept erasure method to use (if any)."
 )
-def main(run_id: str, concept_erasure: Optional[str] = None) -> None:
+@click.option(
+    "--include_sublayers",
+    is_flag=True,
+    help="Include sublayers of BERT in the concept erasure method.",
+)
+def main(
+    run_id: str, concept_erasure: Optional[str] = None, include_sublayers: bool = False
+) -> None:
     logging.set_verbosity_info()
     logger = logging.get_logger("transformers")
 
@@ -32,7 +39,11 @@ def main(run_id: str, concept_erasure: Optional[str] = None) -> None:
     # Erase heuristic concepts if necessary
     if concept_erasure is not None:
         logger.info(f"Erasing heuristic concepts using {concept_erasure}.")
-        bert_erase_heuristic(bert=model, concept_erasure=concept_erasure)
+        bert_erase_heuristic(
+            bert=model,
+            concept_erasure=concept_erasure,
+            include_sublayers=include_sublayers,
+        )
 
     # Load the HANS dataset
     logger.info("Loading HANS dataset.")
@@ -42,7 +53,7 @@ def main(run_id: str, concept_erasure: Optional[str] = None) -> None:
     # Define training arguments
     training_args = TrainingArguments(
         output_dir=f"./results/{run_id}",
-        per_device_eval_batch_size=1 if concept_erasure == "leace-flatten" else 64,
+        per_device_eval_batch_size=4 if concept_erasure == "leace-flatten" else 64,
         logging_dir=f"./logs/{run_id}",
         do_eval=True,
         evaluation_strategy="epoch",
