@@ -38,9 +38,7 @@ class ConceptEraser(HookManager, ABC):
     def fit(self, model: nn.Module, data_loader: DataLoader) -> None:
         self.register_hooks(self.fit_hook)
         batch: dict[str, torch.Tensor]
-        for batch in tqdm(
-            data_loader, desc="Fitting concept erasers", unit="batch", leave=False
-        ):
+        for batch in data_loader:
 
             # Remove labels and promptID from batch
             if "labels" in batch:

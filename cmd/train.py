@@ -1,22 +1,25 @@
 import random
 import string
 from functools import partial
+from typing import Optional
 
+import click
 from datasets import load_dataset
-from transformers import (
-    AutoModelForSequenceClassification,
-    AutoTokenizer,
-    Trainer,
-    TrainingArguments,
-)
+from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments
 from transformers.utils import logging
 
 from oleace.datasets.hans import HANSDataset
+from oleace.utils.callbacks import ConceptEraserCallback
+from oleace.utils.concept import build_mnli_heuristic_loader, get_bert_concept_eraser
 from oleace.utils.eval import compute_metrics
 from oleace.utils.tokenization import tokenize_mnli
 
 
-def main() -> None:
+@click.command()
+@click.option(
+    "--concept_erasure", default=None, help="Concept erasure method to use (if any)."
+)
+def main(concept_erasure: Optional[str] = None) -> None:
 
     # Initialize Weights and Biases
     try:
@@ -71,6 +74,17 @@ def main() -> None:
         evaluation_strategy="epoch",
     )
 
+    # If concept erasure is specified, create the concept eraser callback
+    if concept_erasure is not None:
+        logger.info(f"Creating concept erasure callback using {concept_erasure}.")
+        concept_data_loader = build_mnli_heuristic_loader()
+        concept_eraser = get_bert_concept_eraser(
+            bert=bert, concept_erasure=concept_erasure
+        )
+        concept_eraser_callback = ConceptEraserCallback(
+            concept_eraser=concept_eraser, concept_data_loader=concept_data_loader
+        )
+
     # Define trainer
     trainer = Trainer(
         model=bert,
@@ -78,6 +92,7 @@ def main() -> None:
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         compute_metrics=partial(compute_metrics, dataset_name="mnli"),
+        callbacks=[concept_eraser_callback] if concept_erasure is not None else None,
     )
 
     # Finetune model

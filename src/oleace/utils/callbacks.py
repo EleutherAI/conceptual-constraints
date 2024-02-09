@@ -1,3 +1,5 @@
+from typing import Any, Callable
+
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import TrainerCallback
@@ -15,6 +17,7 @@ class ConceptEraserCallback(TrainerCallback):
         concept_data_loader: DataLoader,
         update_frequency: int = 50,
     ):
+        super().__init__()
         self.logger = logging.get_logger("transformers")
         self.concept_eraser = concept_eraser
         self.concept_data_loader = concept_data_loader
@@ -26,6 +29,7 @@ class ConceptEraserCallback(TrainerCallback):
         state: TrainerState,
         control: TrainerControl,
         model: nn.Module,
+        **kwargs: dict[str, Any],
     ) -> None:
         if state.global_step % self.update_frequency == 0:
             self.update_concept_eraser(model)
@@ -36,11 +40,12 @@ class ConceptEraserCallback(TrainerCallback):
         state: TrainerState,
         control: TrainerControl,
         model: nn.Module,
+        tokenizer: Callable,
+        **kwargs: dict[str, Any],
     ) -> None:
         self.update_concept_eraser(model)
 
     def update_concept_eraser(self, model: nn.Module) -> None:
-        self.logger.info("Updating concept eraser.")
         self.concept_eraser.deactivate_eraser()
         self.concept_eraser.fit(model, self.concept_data_loader)
         self.concept_eraser.activate_eraser()

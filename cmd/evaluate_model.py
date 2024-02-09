@@ -15,7 +15,7 @@ from oleace.utils.eval import compute_metrics, get_latest_checkpoint
 @click.command()
 @click.argument("run_id")
 @click.option(
-    "--concept-erasure", default=None, help="Concept erasure method to use (if any)."
+    "--concept_erasure", default=None, help="Concept erasure method to use (if any)."
 )
 def main(run_id: str, concept_erasure: Optional[str] = None) -> None:
     logging.set_verbosity_info()

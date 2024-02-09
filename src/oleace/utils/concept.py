@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import BertForSequenceClassification, DefaultDataCollator
 
-from .hooks import LeaceCLS, LeaceFlatten
+from .hooks import ConceptEraser, LeaceCLS, LeaceFlatten
 from .tokenization import tokenize_mnli
 
 
@@ -165,9 +165,9 @@ def build_mnli_heuristic_loader(batch_size: int = 32) -> DataLoader:
     )
 
 
-def bert_erase_heuristic(
-    bert: BertForSequenceClassification, concept_erasure: str = "leace-cls"
-) -> None:
+def get_bert_concept_eraser(
+    bert: BertForSequenceClassification, concept_erasure: str
+) -> ConceptEraser:
 
     # Get a list of BERT layers (i.e. all transformer blocks)
     bert_layers = list(bert.bert.encoder.layer.children())
@@ -175,11 +175,17 @@ def bert_erase_heuristic(
     # Apply the right concept erasure method to these layers
     match concept_erasure:
         case "leace-cls":
-            concept_eraser = LeaceCLS(bert_layers, num_concepts=3)
+            return LeaceCLS(bert_layers, num_concepts=3)
         case "leace-flatten":
-            concept_eraser = LeaceFlatten(bert_layers, num_concepts=3)
+            return LeaceFlatten(bert_layers, num_concepts=3)
         case _:
             raise ValueError(f"Invalid concept erasure method: {concept_erasure}.")
 
+
+def bert_erase_heuristic(
+    bert: BertForSequenceClassification, concept_erasure: str = "leace-cls"
+) -> None:
+
+    concept_eraser = get_bert_concept_eraser(bert, concept_erasure)
     concept_eraser.fit(model=bert, data_loader=build_mnli_heuristic_loader())
     concept_eraser.activate_eraser()
