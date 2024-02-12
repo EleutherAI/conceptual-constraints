@@ -95,6 +95,7 @@ class ConceptEraser(HookManager, ABC):
 
 
 class LeaceCLS(ConceptEraser):
+    @torch.autocast("cuda", enabled=False)
     def fit_hook(
         self,
         module: nn.Module,
