@@ -98,6 +98,7 @@ def main(
         do_train=True,
         do_eval=True,
         evaluation_strategy="epoch",
+        save_total_limit=5,
         # fp16=True,
         tf32=True,
     )
