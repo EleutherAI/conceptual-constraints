@@ -24,8 +24,21 @@ from oleace.utils.tokenization import tokenize_mnli
     is_flag=True,
     help="Include sublayers of BERT in the concept erasure method.",
 )
+@click.option(
+    "--local-rank",
+    default=None,
+    help="distributed GPU rank",
+)
+@click.option(
+    "--update_frequency",
+    default=50,
+    help="update every _ steps",
+)
 def main(
-    concept_erasure: Optional[str] = None, include_sublayers: bool = False
+    concept_erasure: Optional[str] = None, 
+    include_sublayers: bool = False,
+    local_rank: Optional[int] = None,
+    update_frequency: Optional[int] = 50,
 ) -> None:
 
     # Initialize Weights and Biases
@@ -72,13 +85,15 @@ def main(
     training_args = TrainingArguments(
         output_dir=f"./results/{run_id}",
         num_train_epochs=3,
-        per_device_train_batch_size=32,
-        per_device_eval_batch_size=64,
+        per_device_train_batch_size=32//8,
+        per_device_eval_batch_size=64//8,
         learning_rate=2e-5,
         logging_dir=f"./logs/{run_id}",
         do_train=True,
         do_eval=True,
         evaluation_strategy="epoch",
+        # fp16=True,
+        tf32=True,
     )
 
     # If concept erasure is specified, create the concept eraser callback
@@ -91,7 +106,9 @@ def main(
             include_sublayers=include_sublayers,
         )
         concept_eraser_callback = ConceptEraserCallback(
-            concept_eraser=concept_eraser, concept_data_loader=concept_data_loader
+            concept_eraser=concept_eraser, 
+            concept_data_loader=concept_data_loader,
+            update_frequency=update_frequency,
         )
 
     # Define trainer
