@@ -27,18 +27,24 @@ from oleace.utils.tokenization import tokenize_mnli
 @click.option(
     "--local-rank",
     default=None,
-    help="distributed GPU rank",
+    help="torch.distributed GPU rank",
 )
 @click.option(
     "--update_frequency",
     default=50,
     help="update every _ steps",
 )
+@click.option(
+    "--gpus",
+    default=1,
+    help="divide batch size for data parallelism",
+)
 def main(
     concept_erasure: Optional[str] = None, 
     include_sublayers: bool = False,
     local_rank: Optional[int] = None,
     update_frequency: Optional[int] = 50,
+    gpus: int = 1,
 ) -> None:
 
     # Initialize Weights and Biases
@@ -85,8 +91,8 @@ def main(
     training_args = TrainingArguments(
         output_dir=f"./results/{run_id}",
         num_train_epochs=3,
-        per_device_train_batch_size=32//8,
-        per_device_eval_batch_size=64//8,
+        per_device_train_batch_size=32 // gpus,
+        per_device_eval_batch_size=64 // gpus,
         learning_rate=2e-5,
         logging_dir=f"./logs/{run_id}",
         do_train=True,
