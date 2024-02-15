@@ -46,7 +46,7 @@ TrainDataset = Literal["mnli", "hansmnli"]
     help="divide batch size for data parallelism",
 )
 @click.option(
-    "--train_dataset",
+    "--dataset",
     default="mnli",
     help="training dataset",
 )
