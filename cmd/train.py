@@ -55,6 +55,11 @@ TrainDataset = Literal["mnli", "hansmnli"]
     default=None,
     help="descriptive name for the run",
 )
+@click.option(
+    "--imbalance",
+    default=3,
+    help="imbalance factor for HANS dataset",
+)
 def main(
     concept_erasure: Optional[str] = None, 
     include_sublayers: bool = False,
@@ -64,6 +69,7 @@ def main(
     gpus: int = 1,
     dataset: TrainDataset = "mnli",
     name: Optional[str] = None,
+    imbalance: int = 3,
 ) -> None:
 
     # Initialize Weights and Biases
@@ -114,8 +120,8 @@ def main(
             # get first third of HANS examples with label 1
             hans_train_noentail = hans_train_dataset.filter(lambda example: example["label"] == 1)
             hans_val_noentail = hans_val_dataset.filter(lambda example: example["label"] == 1)
-            hans_train_noentail = hans_train_noentail.select(range(len(hans_train_noentail) // 3))
-            hans_val_noentail = hans_val_noentail.select(range(len(hans_val_noentail) // 3))
+            hans_train_noentail = hans_train_noentail.select(range(len(hans_train_noentail) // imbalance))
+            hans_val_noentail = hans_val_noentail.select(range(len(hans_val_noentail) // imbalance))
             # get all HANS examples with label 0
             hans_train_entail = hans_train_dataset.filter(lambda example: example["label"] == 0)
             hans_val_entail = hans_val_dataset.filter(lambda example: example["label"] == 0)
