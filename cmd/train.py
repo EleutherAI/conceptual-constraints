@@ -224,7 +224,7 @@ def main(
     logger.info("Evaluating model on HANS dataset.")
     trainer.compute_metrics = partial(compute_metrics, dataset_name="hans")
     eval_results = trainer.evaluate(
-        eval_dataset=hans_eval.get_splits()
+        eval_dataset=hans_train.get_splits() | hans_eval.get_splits()
     )
     logger.info(eval_results)
 
