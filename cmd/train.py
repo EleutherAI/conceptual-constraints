@@ -26,6 +26,11 @@ TrainDataset = Literal["mnli", "hansmnli"]
     help="Include sublayers of BERT in the concept erasure method.",
 )
 @click.option(
+    "--ema_beta",
+    default=None,
+    help="Exponential moving average beta for concept erasure.",
+)
+@click.option(
     "--local-rank",
     default=None,
     help="torch.distributed GPU rank",
@@ -48,6 +53,7 @@ TrainDataset = Literal["mnli", "hansmnli"]
 def main(
     concept_erasure: Optional[str] = None, 
     include_sublayers: bool = False,
+    ema_beta: Optional[float] = None,
     local_rank: Optional[int] = None,
     update_frequency: Optional[int] = 50,
     gpus: int = 1,
@@ -174,6 +180,7 @@ def main(
             bert=bert,
             concept_erasure=concept_erasure,
             include_sublayers=include_sublayers,
+            ema_beta=ema_beta,
         )
         concept_eraser_callback = ConceptEraserCallback(
             concept_eraser=concept_eraser, 

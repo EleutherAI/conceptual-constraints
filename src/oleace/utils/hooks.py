@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Callable
+from typing import Callable, Optional
 
 import torch
 import torch.nn as nn
@@ -28,9 +28,14 @@ class HookManager(ABC):
 
 
 class ConceptEraser(HookManager, ABC):
-    def __init__(self, module_list: list[Module], num_concepts: int = 2):
+    def __init__(
+        self, module_list: list[Module], 
+        num_concepts: int = 2,
+        ema_beta: Optional[float] = None,
+    ):
         super().__init__(module_list)
         self.num_concepts = num_concepts
+        self.ema_beta = ema_beta
         self.erasers: dict[nn.Module, LeaceFitter | None | LeaceEraser] = {
             module: None for module in module_list
         }
@@ -115,7 +120,9 @@ class LeaceCLS(ConceptEraser):
         # Instantiate LEACE eraser if necessary
         if self.erasers[module] is None:
             self.erasers[module] = LeaceFitter(
-                cls_rep.shape[-1], self.num_concepts + 1, device=cls_rep.device
+                cls_rep.shape[-1], self.num_concepts + 1, 
+                device=cls_rep.device,
+                ema_beta=self.ema_beta,
             )
 
         # Update LEACE eraser with the right statistics
@@ -176,6 +183,7 @@ class LeaceFlatten(ConceptEraser):
                 self.num_concepts + 1,
                 device=sequence_rep.device,
                 method="orth",
+                ema_beta=self.ema_beta,
             )
 
         leace_eraser = self.erasers[module]

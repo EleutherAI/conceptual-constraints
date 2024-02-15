@@ -2,6 +2,7 @@
 # https://github.com/tommccoy1/hans/blob/master/heuristic_finder_scripts/const_finder.py
 
 from collections import defaultdict
+from typing import Optional
 
 from datasets import load_dataset
 from torch.utils.data import DataLoader
@@ -177,6 +178,7 @@ def get_bert_concept_eraser(
     bert: BertForSequenceClassification,
     concept_erasure: str,
     include_sublayers: bool = False,
+    ema_beta: Optional[float] = None,
 ) -> ConceptEraser:
 
     # Get a list of BERT layers (i.e. all transformer blocks)
@@ -188,9 +190,9 @@ def get_bert_concept_eraser(
     # Apply the right concept erasure method to these layers
     match concept_erasure:
         case "leace-cls":
-            return LeaceCLS(bert_layers, num_concepts=3)
+            return LeaceCLS(bert_layers, num_concepts=3, ema_beta=ema_beta)
         case "leace-flatten":
-            return LeaceFlatten(bert_layers, num_concepts=3)
+            return LeaceFlatten(bert_layers, num_concepts=3, ema_beta=ema_beta)
         case _:
             raise ValueError(f"Invalid concept erasure method: {concept_erasure}.")
 
