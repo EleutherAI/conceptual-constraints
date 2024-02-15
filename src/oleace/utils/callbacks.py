@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -45,7 +45,9 @@ class ConceptEraserCallback(TrainerCallback):
         self.update_concept_eraser(model)
 
     def update_concept_eraser(self, model: nn.Module) -> None:
-        self.concept_eraser.reset_eraser()
+        if self.concept_eraser.ema_beta is None:
+            # reset if not using EMA (fit will recreate the eraser)
+            self.concept_eraser.reset_eraser()
         self.concept_eraser.deactivate_eraser()
         self.concept_eraser.fit(model, self.concept_data_loader)
         self.concept_eraser.activate_eraser()
