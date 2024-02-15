@@ -15,6 +15,11 @@ def compute_metrics(
         case "hans":
             predictions = np.argmax(logits, axis=-1)
             predictions = np.where(predictions == 0, 0, 1)
+        case "hansmnli":
+            predictions = np.argmax(logits, axis=-1)
+            predictions = np.where(predictions == 0, 0, 1)
+        case _:
+            raise ValueError(f"Unknown dataset {dataset_name}")
 
     return metric.compute(predictions=predictions, references=labels)  # type: ignore
 
