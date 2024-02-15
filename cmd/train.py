@@ -32,7 +32,7 @@ TrainDataset = Literal["mnli", "hansmnli"]
 )
 @click.option(
     "--local-rank",
-    default=None,
+    default=0,
     help="torch.distributed GPU rank",
 )
 @click.option(
@@ -50,21 +50,27 @@ TrainDataset = Literal["mnli", "hansmnli"]
     default="mnli",
     help="training dataset",
 )
+@click.option(
+    "--name",
+    default=None,
+    help="descriptive name for the run",
+)
 def main(
     concept_erasure: Optional[str] = None, 
     include_sublayers: bool = False,
     ema_beta: Optional[float] = None,
-    local_rank: Optional[int] = None,
+    local_rank: int = 0,
     update_frequency: Optional[int] = 50,
     gpus: int = 1,
     dataset: TrainDataset = "mnli",
+    name: Optional[str] = None,
 ) -> None:
 
     # Initialize Weights and Biases
     try:
         import wandb
 
-        run = wandb.init(project="oleace")
+        run = wandb.init(project="oleace", name=f"{name}#{local_rank}" if name is not None else None)
         assert run is not None
         run_id = run.id
 
@@ -218,7 +224,7 @@ def main(
     logger.info("Evaluating model on HANS dataset.")
     trainer.compute_metrics = partial(compute_metrics, dataset_name="hans")
     eval_results = trainer.evaluate(
-        eval_dataset=hans_train.get_splits() | hans_eval.get_splits()
+        eval_dataset=hans_eval.get_splits()
     )
     logger.info(eval_results)
 
