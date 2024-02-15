@@ -110,15 +110,23 @@ def is_subsequence(data: dict[str, str]) -> bool:
     return hyp_filtered in prem_filtered
 
 
+def no_heuristic(data: dict[str, str]) -> bool:
+    return not (is_constituent(data) or is_lexical_overlap(data) or is_subsequence(data))
+
+
 def build_mnli_heuristic_loader(batch_size: int = 32) -> DataLoader:
+    # Get the MNLI dataset and tokenize it
+    mnli_dataset = load_dataset("multi_nli", split="train")
+    mnli_dataset = tokenize_mnli(mnli_dataset)
+
+    return build_heuristic_loader(mnli_dataset, batch_size)
+
+
+def build_heuristic_loader(dataset, batch_size: int = 32) -> DataLoader:
     assert batch_size > 0, "The batch size must be positive."
     assert (
         batch_size % 4 == 0
     ), "The batch size must be divisible by 4 as it needs to be balanced accross 3 concepts and 1 negative."
-
-    # Get the MNLI dataset and tokenize it
-    mnli_dataset = load_dataset("multi_nli", split="train")
-    mnli_dataset = tokenize_mnli(mnli_dataset)
 
     concept_detectors = {
         "constituent": is_constituent,
@@ -130,8 +138,8 @@ def build_mnli_heuristic_loader(batch_size: int = 32) -> DataLoader:
     concept_indices: dict[str, list[int]] = defaultdict(list)
     for idx, example_data in enumerate(
         tqdm(
-            mnli_dataset,
-            desc="Assigning concepts to MNLI examples",
+            dataset,
+            desc="Assigning concepts to dataset examples",
             unit=" examples",
             leave=False,
         )
@@ -154,11 +162,11 @@ def build_mnli_heuristic_loader(batch_size: int = 32) -> DataLoader:
             concept_sequence.append(indices[i])
 
     # Create a subset of the MNLI dataset with the concept sequence
-    mnli_dataset = mnli_dataset.select(concept_sequence)
+    dataset = dataset.select(concept_sequence)
 
     # Return a DataLoader with the concept set
     return DataLoader(
-        mnli_dataset,
+        dataset,
         batch_size=batch_size,
         shuffle=False,
         collate_fn=DefaultDataCollator(),
