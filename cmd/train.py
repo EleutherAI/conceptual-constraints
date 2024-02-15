@@ -127,6 +127,13 @@ def main(
             hans_val_dataset = hans_val_dataset.shuffle(seed=42)
             hans_val_dataset = hans_val_dataset.select(range(len(mnli_val_dataset)))
 
+            # rename HANS 'binary_parse_premise' to 'premise_binary_parse'
+            # and 'binary_parse_hypothesis' to 'hypothesis_binary_parse'
+            hans_train_dataset = hans_train_dataset.rename_column("binary_parse_premise", "premise_binary_parse")
+            hans_train_dataset = hans_train_dataset.rename_column("binary_parse_hypothesis", "hypothesis_binary_parse")
+            hans_val_dataset = hans_val_dataset.rename_column("binary_parse_premise", "premise_binary_parse")
+            hans_val_dataset = hans_val_dataset.rename_column("binary_parse_hypothesis", "hypothesis_binary_parse")
+
             # relabel MNLI 'label' 1 and 2 both to 1
             mnli_train_dataset = mnli_train_dataset.map(lambda example: {"label": 1 if example["label"] > 0 else 0})
             mnli_val_dataset = mnli_val_dataset.map(lambda example: {"label": 1 if example["label"] > 0 else 0})
