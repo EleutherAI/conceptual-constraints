@@ -187,7 +187,7 @@ def main(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
-        compute_metrics=partial(compute_metrics, dataset_name=dataset,
+        compute_metrics=partial(compute_metrics, dataset_name=dataset),
         callbacks=[concept_eraser_callback] if concept_erasure is not None else None,
     )
 
