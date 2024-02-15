@@ -168,11 +168,15 @@ def main(
             train_dataset = concatenate_datasets([hans_train_dataset, mnli_train_dataset])
             val_dataset = concatenate_datasets([hans_val_dataset, mnli_val_dataset])
 
+    num_labels_dict = {
+        "mnli": 3,
+        "hansmnli": 2,
+    }
 
     # Load BERT model and tokenizer
     logger.info("Loading BERT model.")
     bert = AutoModelForSequenceClassification.from_pretrained(
-        "bert-base-uncased", num_labels=3
+        "bert-base-uncased", num_labels=num_labels_dict[dataset]
     )
 
     # Define training arguments
