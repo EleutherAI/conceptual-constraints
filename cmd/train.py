@@ -1,7 +1,7 @@
 import random
 import string
 from functools import partial
-from typing import Optional, Literal
+from typing import Callable, Optional, Literal
 
 import click
 from datasets import load_dataset, concatenate_datasets, ClassLabel
@@ -10,15 +10,23 @@ from transformers.utils import logging
 
 from oleace.datasets.hans import HANSDataset
 from oleace.utils.callbacks import ConceptEraserCallback
-from oleace.utils.concept import get_bert_concept_eraser, no_heuristic, build_heuristic_loader, build_entailment_loader
+from oleace.utils.concept import get_bert_concept_eraser, no_heuristic, build_concept_loader, Concepts
 from oleace.utils.eval import compute_metrics, compute_metrics_auc
 from oleace.utils.tokenization import tokenize_mnli
 
 TrainDataset = Literal["mnli", "hansmnli"]
+ErasureMethod = Literal["leace-cls", "leace-flatten"]
 
 @click.command()
 @click.option(
-    "--concept_erasure", default=None, help="Concept erasure method to use (if any)."
+    "--erasure_method", 
+    default="leace-cls", 
+    help="Concept erasure method to use."
+)
+@click.option(
+    "--concepts",
+    default=None,
+    help="Concepts to erase. If None, don't use LEACE.",
 )
 @click.option(
     "--include_sublayers",
@@ -56,27 +64,23 @@ TrainDataset = Literal["mnli", "hansmnli"]
     help="training dataset",
 )
 @click.option(
+    "--imbalance",
+    default=100,
+    help="imbalance factor for HANS part of train dataset",
+)
+@click.option(
     "--name",
     default=None,
     help="descriptive name for the run",
-)
-@click.option(
-    "--imbalance",
-    default=100,
-    help="imbalance factor for HANS dataset",
 )
 @click.option(
     "--acc",
     is_flag=True,
     help="use accuracy-by-label instead of AUC for HANS evaluation",
 )
-@click.option(
-    "--erase_labels",
-    is_flag=True,
-    help="LEACE the entailment labels",
-)
 def main(
-    concept_erasure: Optional[str] = None, 
+    erasure_method: ErasureMethod = "leace-cls",
+    concepts: Optional[Concepts] = None, 
     include_sublayers: bool = False,
     layers: Optional[list[int]] = None,
     ema_beta: Optional[float] = None,
@@ -87,7 +91,6 @@ def main(
     name: Optional[str] = None,
     imbalance: int = 100,
     acc: bool = False,
-    erase_labels: bool = False,
 ) -> None:
     
     auc = not acc
@@ -192,15 +195,15 @@ def main(
             train_dataset = concatenate_datasets([hans_train_dataset, mnli_train_dataset])
             val_dataset = concatenate_datasets([hans_val_dataset, mnli_val_dataset])
 
-    num_labels_dict = {
+    num_labels = {
         "mnli": 3,
         "hansmnli": 2,
-    }
+    }[dataset]
 
     # Load BERT model and tokenizer
     logger.info("Loading BERT model.")
     bert = AutoModelForSequenceClassification.from_pretrained(
-        "bert-base-uncased", num_labels=num_labels_dict[dataset]
+        "bert-base-uncased", num_labels=num_labels
     )
 
     # Define training arguments
@@ -219,18 +222,22 @@ def main(
         tf32=True,
     )
 
-    # If concept erasure is specified, create the concept eraser callback
-    if concept_erasure is not None:
-        logger.info(f"Creating concept erasure callback using {concept_erasure}.")
-        build_loader = build_entailment_loader if erase_labels else build_heuristic_loader
-        concept_data_loader = build_loader(train_dataset)
+    # If concepts are specified, create the concept eraser callback
+    if concepts is not None:
+        logger.info(f"Creating concept erasure callback using {erasure_method}.")
+        concept_data_loader = build_concept_loader(train_dataset, concepts)
+        num_concepts = {
+            "labels": num_labels - 1,
+            "heuristics": 3,
+            "both": num_labels + 2,
+        }[concepts]
         concept_eraser = get_bert_concept_eraser(
             bert=bert,
-            concept_erasure=concept_erasure,
+            concept_erasure=erasure_method,
             include_sublayers=include_sublayers,
             layers=layers,
             ema_beta=ema_beta,
-            num_concepts=1 if erase_labels else 3,
+            num_concepts=num_concepts,
         )
         concept_eraser_callback = ConceptEraserCallback(
             concept_eraser=concept_eraser, 

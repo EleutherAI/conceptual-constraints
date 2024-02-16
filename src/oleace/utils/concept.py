@@ -2,7 +2,7 @@
 # https://github.com/tommccoy1/hans/blob/master/heuristic_finder_scripts/const_finder.py
 
 from collections import defaultdict
-from typing import Optional, Callable
+from typing import Literal, Optional, Callable
 
 from datasets import load_dataset
 from torch.utils.data import DataLoader
@@ -12,6 +12,7 @@ from transformers import BertForSequenceClassification, DefaultDataCollator
 from .hooks import ConceptEraser, LeaceCLS, LeaceFlatten
 from .tokenization import tokenize_mnli
 
+Concepts = Literal["labels", "heuristics", "both"]
 
 def parse_phrase_list(parse: str, phrases: list[str]) -> list[str]:
     if parse == "":
