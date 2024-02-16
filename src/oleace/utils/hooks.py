@@ -90,7 +90,7 @@ class ConceptEraser(HookManager, ABC):
         # Assign concept labels by assuming that the order is [concept_0, concept_1, ..., concept_n, concept_0, ...]
         assert (
             representation.shape[0] % (self.num_concepts + 1) == 0
-        ), f"The batch size {representation.shape[0]} be divisible by  {self.num_concepts + 1}."
+        ), f"The batch size {representation.shape[0]} is not divisible by {self.num_concepts + 1}."
         n_per_concept = representation.shape[0] // (self.num_concepts + 1)
         labels = torch.arange(
             self.num_concepts + 1, dtype=torch.long, device=representation.device
