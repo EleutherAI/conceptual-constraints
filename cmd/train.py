@@ -47,7 +47,7 @@ TrainDataset = Literal["mnli", "hansmnli"]
 )
 @click.option(
     "--dataset",
-    default="mnli",
+    default="hansmnli",
     help="training dataset",
 )
 @click.option(
@@ -57,13 +57,13 @@ TrainDataset = Literal["mnli", "hansmnli"]
 )
 @click.option(
     "--imbalance",
-    default=3,
+    default=100,
     help="imbalance factor for HANS dataset",
 )
 @click.option(
-    "--auc",
+    "--acc",
     is_flag=True,
-    help="use AUC for HANS evaluation",
+    help="use accuracy-by-label instead of AUC for HANS evaluation",
 )
 @click.option(
     "--erase_labels",
@@ -77,12 +77,14 @@ def main(
     local_rank: int = 0,
     update_frequency: Optional[int] = 50,
     gpus: int = 1,
-    dataset: TrainDataset = "mnli",
+    dataset: TrainDataset = "hansmnli",
     name: Optional[str] = None,
-    imbalance: int = 3,
-    auc: bool = False,
+    imbalance: int = 100,
+    acc: bool = False,
     erase_labels: bool = False,
 ) -> None:
+    
+    auc = not acc
 
     # Initialize Weights and Biases
     try:
