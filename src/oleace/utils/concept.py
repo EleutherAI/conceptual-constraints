@@ -200,8 +200,9 @@ def get_bert_concept_eraser(
     num_concepts: int = 3,
 ) -> ConceptEraser:
     
-    assert all(isinstance(layer, int) for layer in layers), \
-        f"The layers must be a list of integers. {repr(layers), type(layers), [type(layer) for layer in layers]}"
+    if layers is not None:
+        assert all(isinstance(layer, int) for layer in layers), \
+            f"The layers must be a list of integers. {repr(layers), type(layers), [type(layer) for layer in layers]}"
 
     # Get a list of BERT layers (i.e. all transformer blocks)
     bert_layers = list(bert.bert.encoder.layer.children())

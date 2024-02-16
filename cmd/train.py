@@ -92,6 +92,10 @@ def main(
     
     auc = not acc
 
+    if isinstance(layers, str):
+        assert layers.startswith("[") and layers.endswith("]")
+        layers = list(map(int, layers[1:-1].split(",")))
+
     # Initialize Weights and Biases
     try:
         import wandb
