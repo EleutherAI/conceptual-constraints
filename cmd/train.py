@@ -11,7 +11,7 @@ from transformers.utils import logging
 from oleace.datasets.hans import HANSDataset
 from oleace.utils.callbacks import ConceptEraserCallback
 from oleace.utils.concept import get_bert_concept_eraser, no_heuristic, build_heuristic_loader
-from oleace.utils.eval import compute_metrics
+from oleace.utils.eval import compute_metrics, compute_metrics_auc
 from oleace.utils.tokenization import tokenize_mnli
 
 TrainDataset = Literal["mnli", "hansmnli"]
@@ -60,6 +60,11 @@ TrainDataset = Literal["mnli", "hansmnli"]
     default=3,
     help="imbalance factor for HANS dataset",
 )
+@click.option(
+    "--auc",
+    is_flag=True,
+    help="use AUC for HANS evaluation",
+)
 def main(
     concept_erasure: Optional[str] = None, 
     include_sublayers: bool = False,
@@ -70,6 +75,7 @@ def main(
     dataset: TrainDataset = "mnli",
     name: Optional[str] = None,
     imbalance: int = 3,
+    auc: bool = False,
 ) -> None:
 
     # Initialize Weights and Biases
@@ -232,9 +238,9 @@ def main(
 
     # Evaluate model on HANS dataset
     logger.info("Evaluating model on HANS dataset.")
-    trainer.compute_metrics = partial(compute_metrics, dataset_name="hans")
+    trainer.compute_metrics = compute_metrics_auc if auc else partial(compute_metrics, dataset_name="hans")
     eval_results = trainer.evaluate(
-        eval_dataset=hans_train.get_splits() | hans_eval.get_splits()
+        eval_dataset=hans_train.get_splits(split_entail=not auc) | hans_eval.get_splits(split_entail=not auc)
     )
     logger.info(eval_results)
 

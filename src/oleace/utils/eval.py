@@ -24,6 +24,15 @@ def compute_metrics(
     return metric.compute(predictions=predictions, references=labels)  # type: ignore
 
 
+def compute_metrics_auc(
+    eval_pred: tuple[np.ndarray, np.ndarray],
+) -> dict[str, float]:
+    metric = evaluate.load("roc_auc")
+    logits, labels = eval_pred
+    scores = logits[:, 1] - logits[:, 0]
+    return metric.compute(prediction_scores=scores, references=labels)  # type: ignore
+
+
 def get_latest_checkpoint(checkpoints_dir: str) -> str:
 
     # Check if the directory exists and is not empty

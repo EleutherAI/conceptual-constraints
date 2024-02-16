@@ -74,11 +74,11 @@ class HANSDataset(Dataset):
     def __getitem__(self, idx: int) -> dict[str, Any]:
         return self.data_list[idx]
 
-    def get_splits(self) -> dict[str, Any]:
+    def get_splits(self, split_entail=True) -> dict[str, Any]:
         subset_indices: dict[str, list[int]] = defaultdict(list)
         for idx in range(len(self)):
             heuristic = self.data_list[idx]["heuristic"]
-            entailment = (
+            entailment = "all" if not split_entail else (
                 "entailment" if self.data_list[idx]["labels"] == 0 else "non-entailment"
             )
             subset_indices[f"hans_{self.split}_{heuristic}_{entailment}"].append(idx)
