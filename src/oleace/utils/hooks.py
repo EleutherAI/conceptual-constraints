@@ -39,6 +39,7 @@ class ConceptEraser(HookManager, ABC):
         self.erasers: dict[nn.Module, LeaceFitter | None | LeaceEraser] = {
             module: None for module in module_list
         }
+        self.current_labels = None
 
     def fit(self, model: nn.Module, data_loader: DataLoader) -> None:
         self.register_hooks(self.fit_hook)
@@ -50,6 +51,9 @@ class ConceptEraser(HookManager, ABC):
                 batch.pop("labels")
             if "promptID" in batch:
                 batch.pop("promptID")
+
+            # Stash the concept labels
+            self.current_labels = batch.pop("concept_labels")
 
             # Move batch to the same device as the model
             batch = {k: v.to(next(model.parameters()).device) for k, v in batch.items()}
@@ -86,18 +90,6 @@ class ConceptEraser(HookManager, ABC):
     ) -> torch.Tensor | tuple[torch.Tensor, ...]:
         pass
 
-    def concept_label_assignment(self, representation: torch.Tensor) -> torch.Tensor:
-        # Assign concept labels by assuming that the order is [concept_0, concept_1, ..., concept_n, concept_0, ...]
-        assert (
-            representation.shape[0] % (self.num_concepts + 1) == 0
-        ), f"The batch size {representation.shape[0]} is not divisible by {self.num_concepts + 1}."
-        n_per_concept = representation.shape[0] // (self.num_concepts + 1)
-        labels = torch.arange(
-            self.num_concepts + 1, dtype=torch.long, device=representation.device
-        ).repeat(n_per_concept)
-        labels = F.one_hot(labels, num_classes=self.num_concepts + 1)
-        return labels
-
 
 class LeaceCLS(ConceptEraser):
     @torch.autocast("cuda", enabled=False)
@@ -114,8 +106,9 @@ class LeaceCLS(ConceptEraser):
         else:
             cls_rep = output[:, 0, :]
 
-        # Assign concept labels
-        labels = self.concept_label_assignment(cls_rep)
+        # Retrieve concept labels
+        labels = self.current_labels
+        assert labels is not None
 
         # Instantiate LEACE eraser if necessary
         if self.erasers[module] is None:
@@ -173,8 +166,9 @@ class LeaceFlatten(ConceptEraser):
         # Flatten the sequence representation
         sequence_rep = sequence_rep.flatten(start_dim=1)
 
-        # Assign concept labels by assuming that the order is [concept_0, concept_1, ..., concept_n, concept_0, ...]
-        labels = self.concept_label_assignment(sequence_rep)
+        # Retrieve concept labels
+        labels = self.current_labels
+        assert labels is not None
 
         # Instantiate LEACE eraser if necessary (with orth flag to save vRAM)
         if self.erasers[module] is None:
