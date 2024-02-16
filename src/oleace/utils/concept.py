@@ -195,12 +195,19 @@ def get_bert_concept_eraser(
     bert: BertForSequenceClassification,
     concept_erasure: str,
     include_sublayers: bool = False,
+    layers: Optional[list[int]] = None,
     ema_beta: Optional[float] = None,
     num_concepts: int = 3,
 ) -> ConceptEraser:
+    
+    assert all(isinstance(layer, int) for layer in layers), \
+        f"The layers must be a list of integers. {repr(layers), type(layers), [type(layer) for layer in layers]}"
 
     # Get a list of BERT layers (i.e. all transformer blocks)
     bert_layers = list(bert.bert.encoder.layer.children())
+
+    if layers is not None:
+        bert_layers = [bert_layers[i] for i in layers]
 
     if include_sublayers:
         bert_layers = [module for layer in bert_layers for module in layer.children()]

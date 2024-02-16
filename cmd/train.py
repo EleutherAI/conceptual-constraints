@@ -26,6 +26,11 @@ TrainDataset = Literal["mnli", "hansmnli"]
     help="Include sublayers of BERT in the concept erasure method.",
 )
 @click.option(
+    "--layers",
+    default=None,
+    help="Layers to apply concept erasure to. If None, apply to all layers.",
+)
+@click.option(
     "--ema_beta",
     default=None,
     help="Exponential moving average beta for concept erasure.",
@@ -73,6 +78,7 @@ TrainDataset = Literal["mnli", "hansmnli"]
 def main(
     concept_erasure: Optional[str] = None, 
     include_sublayers: bool = False,
+    layers: Optional[list[int]] = None,
     ema_beta: Optional[float] = None,
     local_rank: int = 0,
     update_frequency: Optional[int] = 50,
@@ -218,6 +224,7 @@ def main(
             bert=bert,
             concept_erasure=concept_erasure,
             include_sublayers=include_sublayers,
+            layers=layers,
             ema_beta=ema_beta,
             num_concepts=1 if erase_labels else 3,
         )
