@@ -62,7 +62,10 @@ def is_constituent(data: dict[str, str]) -> bool:
 
     hyp_filtered = " ".join(hyp_words)
 
-    return hyp_filtered in all_phrases
+    if hyp_filtered in all_phrases:
+        assert is_subsequence(data)
+        return True
+    return False
 
 
 def is_lexical_overlap(data: dict[str, str]) -> bool:
@@ -108,7 +111,10 @@ def is_subsequence(data: dict[str, str]) -> bool:
     prem_filtered = " ".join(prem_words)
     hyp_filtered = " ".join(hyp_words)
 
-    return hyp_filtered in prem_filtered
+    if hyp_filtered in prem_filtered:
+        assert is_lexical_overlap(data)
+        return True
+    return False
 
 
 def no_heuristic(data: dict[str, str]) -> bool:
@@ -125,9 +131,9 @@ def build_mnli_heuristic_loader(batch_size: int = 32) -> DataLoader:
 
 def build_heuristic_loader(dataset, batch_size: int = 32) -> DataLoader:
     concept_detectors = {
+        "lexical_overlap": lambda data: is_lexical_overlap(data) and not is_subsequence(data),
+        "subsequence": lambda data: is_subsequence(data) and not is_constituent(data),
         "constituent": is_constituent,
-        "lexical_overlap": is_lexical_overlap,
-        "subsequence": is_subsequence,
     }
 
     return build_concept_loader(dataset, concept_detectors, batch_size=batch_size)
