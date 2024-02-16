@@ -2,7 +2,7 @@
 # https://github.com/tommccoy1/hans/blob/master/heuristic_finder_scripts/const_finder.py
 
 from collections import defaultdict
-from typing import Optional
+from typing import Optional, Callable
 
 from datasets import load_dataset
 from torch.utils.data import DataLoader
@@ -124,16 +124,33 @@ def build_mnli_heuristic_loader(batch_size: int = 32) -> DataLoader:
 
 
 def build_heuristic_loader(dataset, batch_size: int = 32) -> DataLoader:
-    assert batch_size > 0, "The batch size must be positive."
-    assert (
-        batch_size % 4 == 0
-    ), "The batch size must be divisible by 4 as it needs to be balanced accross 3 concepts and 1 negative."
-
     concept_detectors = {
         "constituent": is_constituent,
         "lexical_overlap": is_lexical_overlap,
         "subsequence": is_subsequence,
     }
+
+    return build_concept_loader(dataset, concept_detectors, batch_size=batch_size)
+
+
+def build_entailment_loader(dataset, batch_size: int = 32) -> DataLoader:
+    concept_detectors = {
+        "positive": lambda data: data["label"] == 0,
+    }
+
+    return build_concept_loader(dataset, concept_detectors, batch_size=batch_size)
+
+
+def build_concept_loader(dataset, 
+                         concept_detectors: dict[str, Callable],
+                         batch_size: int = 32, 
+                         ) -> DataLoader:
+    num_concepts = len(concept_detectors)
+
+    assert batch_size > 0, "The batch size must be positive."
+    assert (
+        batch_size % (num_concepts + 1) == 0
+    ), f"The batch size must be divisible by {num_concepts+1} as it needs to be balanced across {num_concepts} concepts and 1 negative."
 
     # Make a list of indices for each concept
     concept_indices: dict[str, list[int]] = defaultdict(list)
@@ -162,7 +179,7 @@ def build_heuristic_loader(dataset, batch_size: int = 32) -> DataLoader:
         for concept, indices in concept_indices.items():
             concept_sequence.append(indices[i])
 
-    # Create a subset of the MNLI dataset with the concept sequence
+    # Create a subset of the dataset with the concept sequence
     dataset = dataset.select(concept_sequence)
 
     # Return a DataLoader with the concept set
@@ -179,6 +196,7 @@ def get_bert_concept_eraser(
     concept_erasure: str,
     include_sublayers: bool = False,
     ema_beta: Optional[float] = None,
+    num_concepts: int = 3,
 ) -> ConceptEraser:
 
     # Get a list of BERT layers (i.e. all transformer blocks)
@@ -190,9 +208,9 @@ def get_bert_concept_eraser(
     # Apply the right concept erasure method to these layers
     match concept_erasure:
         case "leace-cls":
-            return LeaceCLS(bert_layers, num_concepts=3, ema_beta=ema_beta)
+            return LeaceCLS(bert_layers, num_concepts=num_concepts, ema_beta=ema_beta)
         case "leace-flatten":
-            return LeaceFlatten(bert_layers, num_concepts=3, ema_beta=ema_beta)
+            return LeaceFlatten(bert_layers, num_concepts=num_concepts, ema_beta=ema_beta)
         case _:
             raise ValueError(f"Invalid concept erasure method: {concept_erasure}.")
 

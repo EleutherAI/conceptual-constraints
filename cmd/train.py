@@ -10,7 +10,7 @@ from transformers.utils import logging
 
 from oleace.datasets.hans import HANSDataset
 from oleace.utils.callbacks import ConceptEraserCallback
-from oleace.utils.concept import get_bert_concept_eraser, no_heuristic, build_heuristic_loader
+from oleace.utils.concept import get_bert_concept_eraser, no_heuristic, build_heuristic_loader, build_entailment_loader
 from oleace.utils.eval import compute_metrics, compute_metrics_auc
 from oleace.utils.tokenization import tokenize_mnli
 
@@ -65,6 +65,11 @@ TrainDataset = Literal["mnli", "hansmnli"]
     is_flag=True,
     help="use AUC for HANS evaluation",
 )
+@click.option(
+    "--erase_labels",
+    is_flag=True,
+    help="LEACE the entailment labels",
+)
 def main(
     concept_erasure: Optional[str] = None, 
     include_sublayers: bool = False,
@@ -76,6 +81,7 @@ def main(
     name: Optional[str] = None,
     imbalance: int = 3,
     auc: bool = False,
+    erase_labels: bool = False,
 ) -> None:
 
     # Initialize Weights and Biases
@@ -204,12 +210,14 @@ def main(
     # If concept erasure is specified, create the concept eraser callback
     if concept_erasure is not None:
         logger.info(f"Creating concept erasure callback using {concept_erasure}.")
-        concept_data_loader = build_heuristic_loader(train_dataset)
+        build_loader = build_entailment_loader if erase_labels else build_heuristic_loader
+        concept_data_loader = build_loader(train_dataset)
         concept_eraser = get_bert_concept_eraser(
             bert=bert,
             concept_erasure=concept_erasure,
             include_sublayers=include_sublayers,
             ema_beta=ema_beta,
+            num_concepts=1 if erase_labels else 3,
         )
         concept_eraser_callback = ConceptEraserCallback(
             concept_eraser=concept_eraser, 
