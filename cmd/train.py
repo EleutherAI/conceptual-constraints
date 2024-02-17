@@ -10,7 +10,7 @@ from transformers.utils import logging
 
 from oleace.datasets.hans import HANSDataset
 from oleace.utils.callbacks import ConceptEraserCallback
-from oleace.utils.concept import get_bert_concept_eraser, no_heuristic, build_concept_loader, Concepts
+from oleace.utils.concept import get_bert_concept_eraser, no_heuristic, build_concept_loader, ConceptMode
 from oleace.utils.eval import compute_metrics, compute_metrics_auc
 from oleace.utils.tokenization import tokenize_mnli
 
@@ -24,9 +24,9 @@ ErasureMethod = Literal["leace-cls", "leace-flatten"]
     help="Concept erasure method to use."
 )
 @click.option(
-    "--concepts",
+    "--concept",
     default=None,
-    help="Concepts to erase. If None, don't use LEACE.",
+    help="Erase 'labels' or 'heuristics', or find 'cosine' without erasing.",
 )
 @click.option(
     "--include_sublayers",
@@ -80,7 +80,7 @@ ErasureMethod = Literal["leace-cls", "leace-flatten"]
 )
 def main(
     erasure_method: ErasureMethod = "leace-cls",
-    concepts: Optional[Concepts] = None, 
+    concept: Optional[ConceptMode] = None, 
     include_sublayers: bool = False,
     layers: Optional[list[int]] = None,
     ema_beta: Optional[float] = None,
@@ -223,14 +223,16 @@ def main(
     )
 
     # If concepts are specified, create the concept eraser callback
-    if concepts is not None:
+    if concept is not None:
         logger.info(f"Creating concept erasure callback using {erasure_method}.")
-        concept_data_loader = build_concept_loader(train_dataset, concepts)
+        concept_data_loader = build_concept_loader(train_dataset, concept)
+        if num_labels != 2:
+            raise NotImplementedError("Concept erasure is only implemented for binary classification.")
         num_concepts = {
-            "labels": num_labels - 1,
+            "labels": 1,
             "heuristics": 3,
-            "both": num_labels + 2,
-        }[concepts]
+            "cosine": 4,
+        }[concept]
         concept_eraser = get_bert_concept_eraser(
             bert=bert,
             concept_erasure=erasure_method,
@@ -238,6 +240,7 @@ def main(
             layers=layers,
             ema_beta=ema_beta,
             num_concepts=num_concepts,
+            only_fit=(concept == "cosine"),
         )
         concept_eraser_callback = ConceptEraserCallback(
             concept_eraser=concept_eraser, 
@@ -252,7 +255,7 @@ def main(
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         compute_metrics=partial(compute_metrics, dataset_name=dataset),
-        callbacks=[concept_eraser_callback] if concept_erasure is not None else None,
+        callbacks=[concept_eraser_callback] if concept is not None else None,
     )
 
     # Finetune model

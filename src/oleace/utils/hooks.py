@@ -32,10 +32,12 @@ class ConceptEraser(HookManager, ABC):
         self, module_list: list[Module], 
         num_concepts: int = 2,
         ema_beta: Optional[float] = None,
+        only_fit: bool = False,
     ):
         super().__init__(module_list)
         self.num_concepts = num_concepts
         self.ema_beta = ema_beta
+        self.only_fit = only_fit
         self.erasers: dict[nn.Module, LeaceFitter | None | LeaceEraser] = {
             module: None for module in module_list
         }
@@ -60,6 +62,26 @@ class ConceptEraser(HookManager, ABC):
 
             # Forward pass
             model(**batch)
+
+        if self.only_fit:
+            for module in self.module_list:
+                eraser = self.erasers[module]
+                print("Computing cosine similarity (col 1 is entailment)")
+                print("================================")
+                sigma_xz = eraser.sigma_xz
+
+                # Compute the cosine similarity between columns of sigma_xz
+                for i in list(range(2, sigma_xz.shape[1]))+[0, 1]:
+                    for j in range(i + 1, sigma_xz.shape[1]):
+                        sim = F.cosine_similarity(sigma_xz[:, i], sigma_xz[:, j], dim=0)
+                        print(f"Similarity between concept {i} and {j}: {sim.item()}")
+                
+                # Project column 1 onto subspace spanned by columns [2:]
+                entail = sigma_xz[:, 1]
+                u = sigma_xz[:, 2:].svd().U
+                p = u @ u.T
+                cosine = (p @ entail).norm() / entail.norm()
+                print(f"Total cosine similarity between entailment and the rest: {cosine.item()}")
 
         self.remove_hooks()
 
@@ -129,6 +151,9 @@ class LeaceCLS(ConceptEraser):
         input: torch.Tensor,
         output: torch.Tensor | tuple[torch.Tensor, ...],
     ) -> torch.Tensor | tuple[torch.Tensor, ...]:
+        
+        if self.only_fit:
+            return output
 
         # Extract the representation from the CLS token
         if isinstance(output, tuple):
@@ -190,6 +215,9 @@ class LeaceFlatten(ConceptEraser):
         input: torch.Tensor,
         output: torch.Tensor | tuple[torch.Tensor, ...],
     ) -> torch.Tensor | tuple[torch.Tensor, ...]:
+        
+        if self.only_fit:
+            return output
 
         # Extract the sequence representation
         if isinstance(output, tuple):

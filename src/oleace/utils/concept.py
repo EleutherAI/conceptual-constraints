@@ -12,7 +12,7 @@ from transformers import BertForSequenceClassification, DefaultDataCollator
 from .hooks import ConceptEraser, LeaceCLS, LeaceFlatten
 from .tokenization import tokenize_mnli
 
-Concepts = Literal["labels", "heuristics", "both"]
+ConceptMode = Literal["labels", "heuristics", "cosine"]
 
 def parse_phrase_list(parse: str, phrases: list[str]) -> list[str]:
     if parse == "":
@@ -130,6 +130,18 @@ def build_mnli_heuristic_loader(batch_size: int = 32) -> DataLoader:
     return build_heuristic_loader(mnli_dataset, batch_size)
 
 
+def build_concept_loader(dataset, concept_mode: ConceptMode, batch_size: int = 32) -> DataLoader:
+    match concept_mode:
+        case "labels":
+            return build_entailment_loader(dataset, batch_size)
+        case "heuristics":
+            return build_heuristic_loader(dataset, batch_size)
+        case "cosine":
+            return build_cosine_loader(dataset, batch_size)
+        case _:
+            raise ValueError(f"Invalid concept mode: {concept_mode}.")
+
+
 def build_heuristic_loader(dataset, batch_size: int = 32) -> DataLoader:
     concept_detectors = {
         "lexical_overlap": lambda data: is_lexical_overlap(data) and not is_subsequence(data),
@@ -137,7 +149,7 @@ def build_heuristic_loader(dataset, batch_size: int = 32) -> DataLoader:
         "constituent": is_constituent,
     }
 
-    return build_concept_loader(dataset, concept_detectors, batch_size=batch_size)
+    return build_concept_loader_from_detectors(dataset, concept_detectors, batch_size=batch_size)
 
 
 def build_entailment_loader(dataset, batch_size: int = 32) -> DataLoader:
@@ -145,19 +157,35 @@ def build_entailment_loader(dataset, batch_size: int = 32) -> DataLoader:
         "positive": lambda data: data["label"] == 0,
     }
 
-    return build_concept_loader(dataset, concept_detectors, batch_size=batch_size)
+    return build_concept_loader_from_detectors(dataset, concept_detectors, batch_size=batch_size)
 
 
-def build_concept_loader(dataset, 
+def build_cosine_loader(dataset, batch_size: int = 32) -> DataLoader:
+    concept_detectors = {
+        "positive": lambda data: data["label"] == 0,
+        "lexical_overlap": lambda data: is_lexical_overlap(data) and not is_subsequence(data),
+        "subsequence": lambda data: is_subsequence(data) and not is_constituent(data),
+        "constituent": is_constituent,
+    }
+
+    return build_concept_loader_from_detectors(dataset, 
+                                               concept_detectors, 
+                                               batch_size=batch_size, 
+                                               balance=False)
+
+
+def build_concept_loader_from_detectors(dataset, 
                          concept_detectors: dict[str, Callable],
                          batch_size: int = 32, 
+                         balance: bool = True,
                          ) -> DataLoader:
     num_concepts = len(concept_detectors)
 
     assert batch_size > 0, "The batch size must be positive."
-    assert (
-        batch_size % (num_concepts + 1) == 0
-    ), f"The batch size must be divisible by {num_concepts+1} as it needs to be balanced across {num_concepts} concepts and 1 negative."
+    if balance:
+        assert (
+            batch_size % (num_concepts + 1) == 0
+        ), f"The batch size must be divisible by {num_concepts+1} as it needs to be balanced across {num_concepts} concepts and 1 negative."
 
     # Make a list of indices for each concept
     concept_indices: dict[str, list[int]] = defaultdict(list)
@@ -186,23 +214,24 @@ def build_concept_loader(dataset,
     
     dataset = dataset.add_column("concept_labels", new_column)
 
-    # Measure the minimum concept size
-    min_size = min(len(indices) for indices in concept_indices.values())
+    if balance:
+        # Measure the minimum concept size
+        min_size = min(len(indices) for indices in concept_indices.values())
 
-    # Create an alternative sequence of concept indices
-    concept_sequence = []
-    for i in range(min_size):
-        for concept, indices in concept_indices.items():
-            concept_sequence.append(indices[i])
+        # Create an alternative sequence of concept indices
+        concept_sequence = []
+        for i in range(min_size):
+            for concept, indices in concept_indices.items():
+                concept_sequence.append(indices[i])
 
-    # Create a subset of the dataset with the concept sequence
-    dataset = dataset.select(concept_sequence)
+        # Create a subset of the dataset with the concept sequence
+        dataset = dataset.select(concept_sequence)
 
     # Return a DataLoader with the concept set
     return DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         collate_fn=DefaultDataCollator(),
     )
 
@@ -214,6 +243,7 @@ def get_bert_concept_eraser(
     layers: Optional[list[int]] = None,
     ema_beta: Optional[float] = None,
     num_concepts: int = 3,
+    only_fit: bool = False,
 ) -> ConceptEraser:
     
     if layers is not None:
@@ -232,9 +262,9 @@ def get_bert_concept_eraser(
     # Apply the right concept erasure method to these layers
     match concept_erasure:
         case "leace-cls":
-            return LeaceCLS(bert_layers, num_concepts=num_concepts, ema_beta=ema_beta)
+            return LeaceCLS(bert_layers, num_concepts=num_concepts, ema_beta=ema_beta, only_fit=only_fit)
         case "leace-flatten":
-            return LeaceFlatten(bert_layers, num_concepts=num_concepts, ema_beta=ema_beta)
+            return LeaceFlatten(bert_layers, num_concepts=num_concepts, ema_beta=ema_beta, only_fit=only_fit)
         case _:
             raise ValueError(f"Invalid concept erasure method: {concept_erasure}.")
 
