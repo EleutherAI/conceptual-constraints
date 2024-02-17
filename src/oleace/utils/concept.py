@@ -161,6 +161,8 @@ def build_concept_loader(dataset,
 
     # Make a list of indices for each concept
     concept_indices: dict[str, list[int]] = defaultdict(list)
+    concepts = ["negative"] + list(concept_detectors.keys())
+    new_column = []
     for idx, example_data in enumerate(
         tqdm(
             dataset,
@@ -170,12 +172,19 @@ def build_concept_loader(dataset,
         )
     ):
         no_concept_assigned = True
+        concept_labels = [0] * (num_concepts + 1)
         for concept, detector in concept_detectors.items():
             if detector(example_data):
                 concept_indices[concept].append(idx)
+                concept_labels[concepts.index(concept)] = 1
                 no_concept_assigned = False
         if no_concept_assigned:
             concept_indices["negative"].append(idx)
+            concept_labels[0] = 1
+        
+        new_column.append(concept_labels)
+    
+    dataset = dataset.add_column("concept_labels", new_column)
 
     # Measure the minimum concept size
     min_size = min(len(indices) for indices in concept_indices.values())
